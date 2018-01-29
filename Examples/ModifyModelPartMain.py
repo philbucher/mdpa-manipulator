@@ -5,7 +5,8 @@ Transaltion is to be given in the format (x,y,z)
 Rotation is to be given ([x,y,z],angle) where [x,y,z] represent the roation vector and 'angle' is the angle of rotation.
 Chair of Structural Analysis, Technical University of Munich
 '''
-
+import sys
+sys.path.insert(0, '../')
 import model_part_manipulator_utility
 
 modelpart_1 = model_part_manipulator_utility.ModelPartManipulator("Blade")
