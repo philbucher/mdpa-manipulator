@@ -1,3 +1,11 @@
+'''
+The file can take an mdpa file and translate and rotate the node and element positions.
+This can also combine 2 more mdpa files into a single one without loosing the node, element, condition details.
+Transaltion is to be given in the format (x,y,z)
+Rotation is to be given ([x,y,z],angle) where [x,y,z] represent the roation vector and 'angle' is the angle of rotation.
+Chair of Structural Analysis, Technical University of Munich
+'''
+
 import KratosMultiphysics
 import KratosMultiphysics.StructuralMechanicsApplication
 import KratosMultiphysics.FluidDynamicsApplication
@@ -8,13 +16,12 @@ import os
 
 '''
 TODO:
-- Copy Variable Data! => Check if it works internally when mdpa is written
+- Copy Variable Data! => Check if it works internally when mdpa is written (nope. not working, we have to do it manually)
 - Apply Rotation to vectorial elemental data!
-- Copy tables
 - Copy Properties
+- Copy Tables
 (- Copy ModelpartData?)
 '''
-
 
 class ModelPartManipulator:
     def __init__(self, MdpaFileName):
@@ -68,13 +75,13 @@ class ModelPartManipulator:
         if len(RotationAxis) != 3:
             raise Exception("Wrong length of input")
         
-        Length_of_axis = math.sqrt(RotationAxis[0]**2+RotationAxis[1]**2+RotationAxis[2]**2)
+        length_of_axis = math.sqrt(RotationAxis[0]**2+RotationAxis[1]**2+RotationAxis[2]**2)
                 
         Qtnion = [0,0,0,0]
         Qtnion[0] = cos(RotationAngle/2)
-        Qtnion[1] = (sin(RotationAngle/2)*RotationAxis[0])/Length_of_axis
-        Qtnion[2] = (sin(RotationAngle/2)*RotationAxis[1])/Length_of_axis
-        Qtnion[3] = (sin(RotationAngle/2)*RotationAxis[2])/Length_of_axis
+        Qtnion[1] = (sin(RotationAngle/2)*RotationAxis[0])/length_of_axis
+        Qtnion[2] = (sin(RotationAngle/2)*RotationAxis[1])/length_of_axis
+        Qtnion[3] = (sin(RotationAngle/2)*RotationAxis[2])/length_of_axis
        
         for node in self.model_part.Nodes:
             x0 = node.X0
