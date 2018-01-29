@@ -4,7 +4,16 @@ import KratosMultiphysics.FluidDynamicsApplication
 import numpy as np
 import math
 from math import cos,sin,pi
-from os import remove
+import os
+
+'''
+TODO:
+- Copy Variable Data! => Check if it works internally when mdpa is written
+- Apply Rotation to vectorial elemental data!
+- Copy tables
+- Copy Properties
+(- Copy ModelpartData?)
+'''
 
 
 class ModelPartManipulator:
@@ -16,12 +25,9 @@ class ModelPartManipulator:
         self.model_part = KratosMultiphysics.ModelPart(MdpaFileName)
         # We reorder because otherwise the numbering might be screwed up when we combine the ModelParts later
         KratosMultiphysics.ReorderConsecutiveModelPartIO(MdpaFileName).ReadModelPart(self.model_part)
-        
-        try:
-            remove(MdpaFileName + ".time")
-            print("*.time file removed sucessfully")
-        except FileNotFoundError as e:
-            print("*.time file could not be removed")
+
+        self.RemoveTimeFiles()
+
 
     def TranslateModelPart(self, TranslationVector):  
         '''
@@ -45,6 +51,7 @@ class ModelPartManipulator:
             node.X += translation_x
             node.Y += translation_y
             node.Z += translation_z
+
 
     def RotateModelPart(self, RotationAxis, RotationAngle):
         '''
@@ -89,6 +96,7 @@ class ModelPartManipulator:
             
             node.Z = 2*(Qtnion[3]*Qtnion[1]*x+Qtnion[3]*Qtnion[2]*y+Qtnion[0]*Qtnion[1]*y)+(Qtnion[0]*Qtnion[0]*z)+(Qtnion[3]*Qtnion[3]*z)-2*(Qtnion[2]*Qtnion[0]*x)-(Qtnion[2]*Qtnion[2]*z)-(Qtnion[1]*Qtnion[1]*z)
 
+
     def AddModelPart(self, OtherModelPart):
         '''
         Adding the OtherModelPart to self.model_part (appending)
@@ -121,6 +129,8 @@ class ModelPartManipulator:
         file.close()
        
         KratosMultiphysics.ModelPartIO(NewMdpaFileName, KratosMultiphysics.IO.WRITE).WriteModelPart(self.model_part)
+
+        ### Write the file to msh for Visualizing in GiD
         model_part = KratosMultiphysics.ModelPart("MDPAToGID")
 
         model_part_io = KratosMultiphysics.ModelPartIO(NewMdpaFileName).ReadModelPart(model_part)
@@ -137,11 +147,15 @@ class ModelPartManipulator:
         gid_io.WriteMesh(model_part.GetMesh())
         gid_io.FinalizeMesh()
 
-        try:
-            remove(NewMdpaFileName + ".time")
-            print("*.time file removed sucessfully")
-        except FileNotFoundError as e:
-            print("*.time file could not be removed")
+        self.RemoveTimeFiles()
+
+
+    def RemoveTimeFiles(self):
+        current_path = os.getcwd()
+        files = os.listdir(current_path)
+        for file in files:
+            if file.endswith(".time"):
+                os.remove(os.path.join(current_path, file))
         
 
 def AddSubModelPart(OriginalModelPart, OtherModelPart):
