@@ -1,22 +1,21 @@
 import KratosMultiphysics
-import KratosMultiphysics.StructuralMechanicsApplication as KratosStructural
-import KratosMultiphysics.FluidDynamicsApplication as KratosCFD
+import KratosMultiphysics.StructuralMechanicsApplication
+import KratosMultiphysics.FluidDynamicsApplication
 import numpy as np
 import math
 from math import cos,sin,pi
 from os import remove
-import SubModelPartModifier as smpm
 
 
 class ModelPartManipulator:
-   
     def __init__(self, MdpaFileName):
         
         #To remove .mpda if the file name is given as .mdpa
         if MdpaFileName.endswith('.mdpa'):
             MdpaFileName = MdpaFileName[:-5]
         self.model_part = KratosMultiphysics.ModelPart(MdpaFileName)
-        KratosMultiphysics.ModelPartIO(MdpaFileName).ReadModelPart(self.model_part)
+        # We reorder because otherwise the numbering might be screwed up when we combine the ModelParts later
+        KratosMultiphysics.ReorderConsecutiveModelPartIO(MdpaFileName).ReadModelPart(self.model_part)
         
         try:
             remove(MdpaFileName + ".time")
@@ -47,7 +46,6 @@ class ModelPartManipulator:
             node.Y += translation_y
             node.Z += translation_z
 
-
     def RotateModelPart(self, RotationAxis, RotationAngle):
         '''
         Rotate the ModelPart around RotationAxis by RotationAngle
@@ -57,7 +55,6 @@ class ModelPartManipulator:
         RotationAngle is in Degree
         The concept of Quaternion is used for the implementation
         Reference : https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation
-        
         '''
         RotationAngle = RotationAngle*(pi/180)
         
@@ -73,7 +70,6 @@ class ModelPartManipulator:
         Qtnion[3] = (sin(RotationAngle/2)*RotationAxis[2])/Length_of_axis
        
         for node in self.model_part.Nodes:
-            
             x0 = node.X0
             y0 = node.Y0
             z0 = node.Z0
@@ -97,21 +93,21 @@ class ModelPartManipulator:
         '''
         Adding the OtherModelPart to self.model_part (appending)
         '''
-        Model_1_Total_Nodes = self.model_part.NumberOfNodes()
-        Model_1_Total_Elements = self.model_part.NumberOfElements()
-        Model_1_Total_Conditions = self.model_part.NumberOfConditions()
-       
+        num_nodes_self = self.model_part.NumberOfNodes()
+        num_elements_self = self.model_part.NumberOfElements()
+        num_conditions_self = self.model_part.NumberOfConditions()
+
         for node in OtherModelPart.Nodes:
-            node.Id += Model_1_Total_Nodes
+            node.Id += num_nodes_self
         for element in OtherModelPart.Elements:
-            element.Id += Model_1_Total_Elements
+            element.Id += num_elements_self
         for condition in OtherModelPart.Conditions:
-            condition.Id += Model_1_Total_Conditions
-            
+            condition.Id += num_conditions_self
+
         KratosMultiphysics.FastTransferBetweenModelPartsProcess(self.model_part, OtherModelPart, "All").Execute()
         
-        #adding submodel parts of OtherModelPart to self.model_part
-        smpm.AddSubModelPart(self,OtherModelPart)
+        #adding submodel parts of OtherModelPart to self.model_part (called recursively)
+        AddSubModelPart(self, OtherModelPart)
     
                 
     def GetModelPart(self):
@@ -147,3 +143,34 @@ class ModelPartManipulator:
         except FileNotFoundError as e:
             print("*.time file could not be removed")
         
+
+def AddSubModelPart(OriginalModelPart, OtherModelPart):
+    for smp_other in OtherModelPart.SubModelParts:
+        if OriginalModelPart.model_part.HasSubModelPart(smp_other.Name):
+            smp_original = OriginalModelPart.model_part.GetSubModelPart(smp_other.Name)
+        else:
+            smp_original = OriginalModelPart.model_part.CreateSubModelPart(smp_other.Name)
+        
+        # making list containing node IDs of particular submodel part
+        num_nodes_other = smp_other.NumberOfNodes()
+        smp_node_id_array = np.zeros(num_nodes_other, dtype=np.int)
+        for node, node_id in zip(smp_other.Nodes, range(num_nodes_other)):
+            smp_node_id_array[node_id] = node.Id 
+        
+        # making list containing element IDs of particular submodel part
+        num_elements_other = smp_other.NumberOfElements()        
+        smp_element_id_array = np.zeros(num_elements_other, dtype=np.int)
+        for element, element_id in zip(smp_other.Elements, range(num_elements_other)):
+            smp_element_id_array[element_id] = element.Id 
+        
+        # making list containing condition IDs of particular submodel part
+        num_conditions_other = smp_other.NumberOfConditions()                
+        smp_condition_id_array = np.zeros(num_conditions_other, dtype=np.int)
+        for condition, condition_id in zip(smp_other.Conditions, range(num_conditions_other)):
+            smp_condition_id_array[condition_id] = condition.Id 
+                    
+        smp_original.AddNodes(smp_node_id_array.tolist())
+        smp_original.AddElements(smp_element_id_array.tolist())
+        smp_original.AddConditions(smp_condition_id_array.tolist())
+    
+        AddSubModelPart(smp_original, smp_other) # call recursively to transfer nested SubModelParts
