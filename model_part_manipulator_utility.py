@@ -32,8 +32,19 @@ class ModelPartManipulator:
         self.model_part = KratosMultiphysics.ModelPart(MdpaFileName)
         # We reorder because otherwise the numbering might be screwed up when we combine the ModelParts later
         KratosMultiphysics.ReorderConsecutiveModelPartIO(MdpaFileName).ReadModelPart(self.model_part)
-
         self.RemoveTimeFiles()
+
+        # Copy NodalData, ElementalData ConditionalData
+        # Datastructure: {"variable_name" : { id : [value] } }
+        self.nodal_data = {}
+        self.elemental_data = {}
+        self.conditional_data = {}
+        
+        with open(MdpaFileName + ".mdpa", "r") as mdpa_file:
+            self.ReadNodalData(mdpa_file)
+            self.ReadElementalData(mdpa_file)
+            self.ReadConditionalData(mdpa_file)
+
 
     def __str__(self):
         print(self.model_part)
@@ -109,6 +120,8 @@ class ModelPartManipulator:
             
             node.Z = 2*(Qtnion[3]*Qtnion[1]*x+Qtnion[3]*Qtnion[2]*y+Qtnion[0]*Qtnion[1]*y)+(Qtnion[0]*Qtnion[0]*z)+(Qtnion[3]*Qtnion[3]*z)-2*(Qtnion[2]*Qtnion[0]*x)-(Qtnion[2]*Qtnion[2]*z)-(Qtnion[1]*Qtnion[1]*z)
 
+        # TODO check if vectorial elemental data is available and rotate as well
+
 
     def AddModelPart(self, OtherModelPart):
         '''
@@ -144,6 +157,8 @@ class ModelPartManipulator:
         KratosMultiphysics.ModelPartIO(NewMdpaFileName, KratosMultiphysics.IO.WRITE).WriteModelPart(self.model_part)
         print("#####\nWrote", self.model_part.Name, "to MDPA\n#####")
 
+        # TODO: Append ElementalData
+
         ### Write the file to msh for Visualizing in GiD
         model_part = KratosMultiphysics.ModelPart("MDPAToGID")
 
@@ -164,6 +179,31 @@ class ModelPartManipulator:
         print("#####\nWrote", self.model_part.Name, "to GiD-Msh\n#####")
 
         self.RemoveTimeFiles()
+
+    def ReadNodalData(self, MdpaFile):
+        MdpaFile.seek(0)
+        for line in MdpaFile:
+            words = line.split()
+            if len(words) > 2:
+                if words[0] == "Begin" and words[1] == "NodalData":
+                    print("Found NodalData for", words[2])
+        
+    def ReadElementalData(self, MdpaFile):
+        MdpaFile.seek(0)
+        for line in MdpaFile:
+            words = line.split()
+            if len(words) > 2:
+                if words[0] == "Begin" and words[1] == "ElementalData":
+                    print("Found ElementalData for", words[2])
+                    # TODO read and append ElementalData
+
+    def ReadConditionalData(self, MdpaFile):
+        MdpaFile.seek(0)
+        for line in MdpaFile:
+            words = line.split()
+            if len(words) > 2:
+                if words[0] == "Begin" and words[1] == "ConditionalData":
+                    print("Found ConditionalData for", words[2])
 
 
     def RemoveTimeFiles(self):
