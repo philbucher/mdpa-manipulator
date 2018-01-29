@@ -15,6 +15,7 @@ modelpart_1.TranslateModelPart([0,0,0.65])
 
 modelpart_1.RotateModelPart([1,0,0], 0)
 
+print(modelpart_1)
 
 modelpart_2 = model_part_manipulator_utility.ModelPartManipulator("Blade.mdpa")
 

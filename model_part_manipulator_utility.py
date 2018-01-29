@@ -35,6 +35,12 @@ class ModelPartManipulator:
 
         self.RemoveTimeFiles()
 
+    def __str__(self):
+        print(self.model_part)
+        return ""
+    
+    __repr__ = __str__
+
 
     def TranslateModelPart(self, TranslationVector):  
         '''
@@ -136,6 +142,7 @@ class ModelPartManipulator:
         file.close()
        
         KratosMultiphysics.ModelPartIO(NewMdpaFileName, KratosMultiphysics.IO.WRITE).WriteModelPart(self.model_part)
+        print("#####\nWrote", self.model_part.Name, "to MDPA\n#####")
 
         ### Write the file to msh for Visualizing in GiD
         model_part = KratosMultiphysics.ModelPart("MDPAToGID")
@@ -153,6 +160,8 @@ class ModelPartManipulator:
         gid_io.InitializeMesh(0)
         gid_io.WriteMesh(model_part.GetMesh())
         gid_io.FinalizeMesh()
+
+        print("#####\nWrote", self.model_part.Name, "to GiD-Msh\n#####")
 
         self.RemoveTimeFiles()
 
