@@ -13,6 +13,9 @@ import os
 import time
 
 def ReadModelPart(mdpa_file_name):
+    '''
+    Read and return a ModelPart from a mdpa file
+    '''
     if mdpa_file_name.endswith('.mdpa'):
         mdpa_file_name = mdpa_file_name[:-5]
     model_part = KratosMultiphysics.ModelPart(mdpa_file_name)
@@ -23,16 +26,21 @@ def ReadModelPart(mdpa_file_name):
 
 
 def GetDefaultModelPart():
+    '''
+    Create and return an empty "dummy" ModelPart to which the other ModelParts are to be added
+    in order to have a clean "start"
+    '''
     model_part = KratosMultiphysics.ModelPart("Empty")
     prop_0 = model_part.GetProperties(0,0) # create dummy properties with id 0
     return model_part
 
 
-def TranslateModelPart(model_part, translation_vector):
+def TranslateModelPart(model_part,
+                       translation_vector):
     '''
     Translate the ModelPart by the values in the translation_vector
     example:
-    modelpart_1.TranslateModelPart([1,2,4])
+    TranslateModelPart(model_part, [1,2,4])
     translation_vector has the format: [x, y, z]
     '''
     if (type(model_part) != KratosMultiphysics.ModelPart):
@@ -55,11 +63,16 @@ def TranslateModelPart(model_part, translation_vector):
         node.Z += translation_z
 
 
-def RotateModelPart(model_part, rotation_axis, rotation_angle, elemental_data_to_rotate=[]):
+def RotateModelPart(model_part,
+                    rotation_axis,
+                    rotation_angle,
+                    elemental_data_to_rotate=[],
+                    conditional_data_to_rotate=[]):
     '''
     Rotate the ModelPart around rotation_axis by rotation_angle
+    It can also rotate vectorial elemental/conditional data
     example:
-    modelpart_1.RotateModelPart([1,2,4], 45)
+    RotateModelPart(model_part, [1,2,4], 45)
     rotation_axis has the format: [x, y, z]
     rotation_angle is in Degree
     '''
@@ -84,8 +97,16 @@ def RotateModelPart(model_part, rotation_axis, rotation_angle, elemental_data_to
             rotated_vec = __RotateVector(elem_data, rotation_axis, rotation_angle)
             elem.SetValue(kratos_variable, rotated_vec)
 
+    for cond_data_name in conditional_data_to_rotate:
+        for cond in model_part.Conditions:
+            kratos_variable = KratosMultiphysics.KratosGlobals.GetVariable(cond_data_name)
+            cond_data = cond.GetValue(kratos_variable)
+            rotated_vec = __RotateVector(cond_data, rotation_axis, rotation_angle)
+            cond.SetValue(kratos_variable, rotated_vec)
 
-def AddModelPart(model_part_1, model_part_2):
+
+def AddModelPart(model_part_1,
+                 model_part_2):
     '''
     Adding the model_part_2 to model_part_1 (appending)
     '''
@@ -111,7 +132,13 @@ def AddModelPart(model_part_1, model_part_2):
     __AddSubModelPart(model_part_1, model_part_2)
 
 
-def WriteMdpaFile(model_part, new_mdpa_file_name, variables_to_write_to_gid=[]):
+def WriteMdpaFile(model_part,
+                  new_mdpa_file_name,
+                  variables_to_write_to_gid=[]):
+    '''
+    Writes the mdpa file from a ModelPart with some additional information
+    Also a GiD file is created for visual postprocessing
+    '''
     if (type(model_part) != KratosMultiphysics.ModelPart):
             raise Exception("input is expected to be provided as a Kratos ModelPart object")
 
@@ -124,7 +151,7 @@ def WriteMdpaFile(model_part, new_mdpa_file_name, variables_to_write_to_gid=[]):
 
     # using append bcs some info was written beforehand
     KratosMultiphysics.ModelPartIO(new_mdpa_file_name, KratosMultiphysics.IO.APPEND).WriteModelPart(model_part)
-    print("#####\nWrote", model_part.Name, "to MDPA\n#####")
+    print("#####\nWrote ModelPart to MDPA\n#####")
 
     ### Write the file for Visualizing in GiD
     model_part = KratosMultiphysics.ModelPart("MDPAToGID")
@@ -157,12 +184,16 @@ def WriteMdpaFile(model_part, new_mdpa_file_name, variables_to_write_to_gid=[]):
 
     gid_io.FinalizeResults()
 
-    print("#####\nWrote", model_part.Name, "to GID\n#####")
+    print("#####\nWrote ModelPart to GID\n#####")
 
     __RemoveTimeFiles()
 
 
-def __WriteModelPartInfo(model_part, open_file):
+def __WriteModelPartInfo(model_part,
+                         open_file):
+    '''
+    Writing some information about the ModelPart to the mdpa file
+    '''
     localtime = time.asctime( time.localtime(time.time()) )
     open_file.write("// File created on " + localtime + "\n")
     open_file.write("// Mesh Information:\n")
@@ -178,7 +209,13 @@ def __WriteModelPartInfo(model_part, open_file):
     open_file.write("\n")
 
 
-def __AddSubModelPart(original_model_part, other_model_part):
+def __AddSubModelPart(original_model_part,
+                      other_model_part):
+    '''
+    Adds the SubModelParts of one ModelPart to the other one
+    If the original ModelPart already contains a SMP with the same name,
+    the entities are added to it
+    '''
     for smp_other in other_model_part.SubModelParts:
         if original_model_part.HasSubModelPart(smp_other.Name):
             smp_original = original_model_part.GetSubModelPart(smp_other.Name)
@@ -210,11 +247,13 @@ def __AddSubModelPart(original_model_part, other_model_part):
         __AddSubModelPart(smp_original, smp_other) # call recursively to transfer nested SubModelParts
 
 
-def __RotateVector(vec_to_rotate, rotation_axis, rotation_angle):
+def __RotateVector(vec_to_rotate,
+                   rotation_axis,
+                   rotation_angle):
     '''
-    Rotate the ModelPart around rotation_axis by rotation_angle
+    Rotates a generic vector around rotation_axis by rotation_angle
     example:
-    modelpart_1.RotateModelPart([1,2,4], 45)
+    __RotateVector([0,12,-3], [1,2,4], 45)
     rotation_axis has the format: [x, y, z]
     rotation_angle is in Degree
     The concept of Quaternion is used for the implementation
@@ -249,6 +288,9 @@ def __RotateVector(vec_to_rotate, rotation_axis, rotation_angle):
 
 
 def __RemoveTimeFiles():
+    '''
+    Removes auxiliary files from the directory
+    '''
     current_path = os.getcwd()
     files = os.listdir(current_path)
     for file in files:
