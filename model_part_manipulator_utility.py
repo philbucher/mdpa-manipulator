@@ -12,6 +12,7 @@ import math
 import os
 import time
 
+
 def ReadModelPart(mdpa_file_name):
     '''
     Read and return a ModelPart from a mdpa file

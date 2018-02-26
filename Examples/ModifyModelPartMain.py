@@ -5,31 +5,25 @@ Transaltion is to be given in the format (x,y,z)
 Rotation is to be given ([x,y,z],angle) where [x,y,z] represent the roation vector and 'angle' is the angle of rotation.
 Chair of Structural Analysis, Technical University of Munich
 '''
-import sys
-sys.path.insert(0, '../')
-import model_part_manipulator_utility
+import model_part_manipulator_utility as mdpa_util # This is on the PYTHONPATH
 
-modelpart_1 = model_part_manipulator_utility.ModelPartManipulator("Blade")
+# Import the applications where the elements/conditions are defined
+import KratosMultiphysics.StructuralMechanicsApplication
 
-modelpart_1.TranslateModelPart([0,0,0.65])
+modelpart_1 = mdpa_util.ReadModelPart("Blade")
+modelpart_2 = mdpa_util.ReadModelPart("Blade")
+modelpart_3 = mdpa_util.ReadModelPart("Blade")
 
-modelpart_1.RotateModelPart([1,0,0], 0)
+mdpa_util.TranslateModelPart(modelpart_1, [0,0,0.65])
+mdpa_util.TranslateModelPart(modelpart_2, [0,0,0.65])
+mdpa_util.TranslateModelPart(modelpart_3, [0,0,0.65])
 
-print(modelpart_1)
+mdpa_util.RotateModelPart(modelpart_2, [1,0,0], 120)
+mdpa_util.RotateModelPart(modelpart_3, [1,0,0], 240)
 
-modelpart_2 = model_part_manipulator_utility.ModelPartManipulator("Blade.mdpa")
+model_part_0 = mdpa_util.GetDefaultModelPart() # using this for a "clean" start
+mdpa_util.AddModelPart(model_part_0, modelpart_1)
+mdpa_util.AddModelPart(model_part_0, modelpart_2)
+mdpa_util.AddModelPart(model_part_0, modelpart_3)
 
-modelpart_2.TranslateModelPart([0,0,0.65])
-
-modelpart_2.RotateModelPart([1,0,0], 120)
-
-modelpart_3 = model_part_manipulator_utility.ModelPartManipulator("Blade.mdpa")
-
-modelpart_3.TranslateModelPart([0,0,0.65])
-
-modelpart_3.RotateModelPart([1,0,0], 240)
-
-modelpart_1.AddModelPart(modelpart_2.GetModelPart())
-modelpart_1.AddModelPart(modelpart_3.GetModelPart())
-
-modelpart_1.WriteMdpaFile("CompleteRotor.mdpa")
+mdpa_util.WriteMdpaFile(model_part_0, "CompleteRotor")
