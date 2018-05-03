@@ -127,7 +127,7 @@ def AddModelPart(model_part_1,
     for condition in model_part_2.Conditions:
         condition.Id += num_conditions_self
 
-    KratosMultiphysics.FastTransferBetweenModelPartsProcess(model_part_1, model_part_2, "All").Execute()
+    KratosMultiphysics.FastTransferBetweenModelPartsProcess(model_part_1, model_part_2, KratosMultiphysics.FastTransferBetweenModelPartsProcess.EntityTransfered.ALL).Execute()
 
     # adding submodel parts of model_part_2 to model_part_1 (called recursively)
     __AddSubModelPart(model_part_1, model_part_2)
