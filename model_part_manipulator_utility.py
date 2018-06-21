@@ -135,7 +135,8 @@ def AddModelPart(model_part_1,
 
 def WriteMdpaFile(model_part,
                   new_mdpa_file_name,
-                  variables_to_write_to_gid=[]):
+                  variables_to_write_to_gid=[],
+                  assing_properties=False):
     '''
     Writes the mdpa file from a ModelPart with some additional information
     Also a GiD file is created for visual postprocessing
@@ -155,8 +156,19 @@ def WriteMdpaFile(model_part,
     print("#####\nWrote ModelPart to MDPA\n#####")
 
     ### Write the file for Visualizing in GiD
-    model_part = KratosMultiphysics.ModelPart("MDPAToGID")
-    model_part_io = KratosMultiphysics.ModelPartIO(new_mdpa_file_name).ReadModelPart(model_part)
+    gid_model_part = KratosMultiphysics.ModelPart("MDPAToGID")
+    KratosMultiphysics.ModelPartIO(new_mdpa_file_name).ReadModelPart(gid_model_part)
+
+    if assing_properties:
+        # assign different Properties to the elems/conds to visualize the smps in GiD
+        property_counter=1
+        for smp in gid_model_part.SubModelParts:
+            prop = model_part.GetProperties(property_counter,0) # mesh_id=0
+            for elem in smp.Elements:
+                elem.Properties = prop
+            for cond in smp.Conditions:
+                cond.Properties = prop
+            property_counter += 1
 
     gid_mode = KratosMultiphysics.GiDPostMode.GiD_PostBinary
     multifile = KratosMultiphysics.MultiFileFlag.MultipleFiles
@@ -167,21 +179,21 @@ def WriteMdpaFile(model_part,
                                 deformed_mesh_flag, write_conditions)
 
     gid_io.InitializeMesh(0)
-    gid_io.WriteMesh(model_part.GetMesh())
+    gid_io.WriteMesh(gid_model_part.GetMesh())
     gid_io.FinalizeMesh()
 
-    gid_io.InitializeResults(0, model_part.GetMesh())
+    gid_io.InitializeResults(0, gid_model_part.GetMesh())
 
     kratos_variables_to_write = []
     for variable_name in variables_to_write_to_gid:
         kratos_variables_to_write.append(KratosMultiphysics.KratosGlobals.GetVariable(variable_name))
 
-    for elem in model_part.Elements:
+    for elem in gid_model_part.Elements:
         for variable in kratos_variables_to_write:
             elem.GetNodes()[0].SetValue(variable, elem.GetValue(variable))
 
     for variable in kratos_variables_to_write:
-        gid_io.WriteNodalResultsNonHistorical(variable, model_part.Nodes, 0)
+        gid_io.WriteNodalResultsNonHistorical(variable, gid_model_part.Nodes, 0)
 
     gid_io.FinalizeResults()
 
