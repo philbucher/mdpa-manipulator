@@ -107,7 +107,7 @@ def RotateModelPart(model_part,
 
 
 def AddModelPart(model_part_1,
-                 model_part_2):
+                 model_part_2,name = ""):
     '''
     Adding the model_part_2 to model_part_1 (appending)
     '''
@@ -129,8 +129,13 @@ def AddModelPart(model_part_1,
 
     KratosMultiphysics.FastTransferBetweenModelPartsProcess(model_part_1, model_part_2, KratosMultiphysics.FastTransferBetweenModelPartsProcess.EntityTransfered.ALL).Execute()
 
-    # adding submodel parts of model_part_2 to model_part_1 (called recursively)
-    __AddSubModelPart(model_part_1, model_part_2)
+    
+    if name == "":
+        # adding submodel parts of model_part_2 to model_part_1 (called recursively)
+        __AddSubModelPart(model_part_1, model_part_2)
+    else:
+        # adding model_part_2 as submodel part to model_part_1 (called recursively)
+        __AddAsSubModelPart(model_part_1, model_part_2,name)
 
 
 def WriteMdpaFile(model_part,
@@ -214,14 +219,18 @@ def __WriteModelPartInfo(model_part,
     open_file.write("// Number of Elements: " + str(model_part.NumberOfElements()) + "\n")
     open_file.write("// Number of Conditions: " + str(model_part.NumberOfConditions()) + "\n")
     open_file.write("// Number of SubModelParts: " + str(model_part.NumberOfSubModelParts()) + "\n")
+    __WriteSubModelPartInfo(model_part,open_file)
+    open_file.write("\n")
+
+def __WriteSubModelPartInfo(model_part,
+                         open_file):
     for smp in model_part.SubModelParts:
         open_file.write("// SubModelPart " + smp.Name + "\n")
         open_file.write("//   Number of Nodes: " + str(smp.NumberOfNodes()) + "\n")
         open_file.write("//   Number of Elements: " + str(smp.NumberOfElements()) + "\n")
         open_file.write("//   Number of Conditions: " + str(smp.NumberOfConditions()) + "\n")
-    open_file.write("\n")
-
-
+        __WriteSubModelPartInfo(smp,open_file)
+        
 def __AddSubModelPart(original_model_part,
                       other_model_part):
     '''
@@ -259,6 +268,39 @@ def __AddSubModelPart(original_model_part,
 
         __AddSubModelPart(smp_original, smp_other) # call recursively to transfer nested SubModelParts
 
+def __AddAsSubModelPart(original_model_part,
+                      other_model_part,name):
+    '''
+    Adds the SubModelParts of one ModelPart to the other one
+    If the original ModelPart already contains a SMP with the same name,
+    the entities are added to it
+    '''
+    smp_original = original_model_part.CreateSubModelPart(name)
+
+    # making list containing node IDs of particular submodel part
+    num_nodes_other = other_model_part.NumberOfNodes()
+    smp_node_id_array = np.zeros(num_nodes_other, dtype=np.int)
+    for node, node_id in zip(other_model_part.Nodes, range(num_nodes_other)):
+        smp_node_id_array[node_id] = node.Id
+
+    # making list containing element IDs of particular submodel part
+    num_elements_other = other_model_part.NumberOfElements()
+    smp_element_id_array = np.zeros(num_elements_other, dtype=np.int)
+    for element, element_id in zip(other_model_part.Elements, range(num_elements_other)):
+        smp_element_id_array[element_id] = element.Id
+
+    # making list containing condition IDs of particular submodel part
+    num_conditions_other = other_model_part.NumberOfConditions()
+    smp_condition_id_array = np.zeros(num_conditions_other, dtype=np.int)
+    for condition, condition_id in zip(other_model_part.Conditions, range(num_conditions_other)):
+        smp_condition_id_array[condition_id] = condition.Id
+
+    smp_original.AddNodes(smp_node_id_array.tolist())
+    smp_original.AddElements(smp_element_id_array.tolist())
+    smp_original.AddConditions(smp_condition_id_array.tolist())
+
+    for smp_other in other_model_part.SubModelParts:
+        __AddAsSubModelPart(smp_original, smp_other,smp_other.Name) # call recursively to transfer nested SubModelParts
 
 def __RotateVector(vec_to_rotate,
                    rotation_axis,
