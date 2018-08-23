@@ -92,18 +92,20 @@ def RotateModelPart(model_part,
         node.Z = RotXYZ[2]
 
     for elem_data_name in elemental_data_to_rotate:
+        kratos_variable = KratosMultiphysics.KratosGlobals.GetVariable(elem_data_name)
         for elem in model_part.Elements:
-            kratos_variable = KratosMultiphysics.KratosGlobals.GetVariable(elem_data_name)
-            elem_data = elem.GetValue(kratos_variable)
-            rotated_vec = __RotateVector(elem_data, rotation_axis, rotation_angle)
-            elem.SetValue(kratos_variable, rotated_vec)
+            if elem.Has(kratos_variable):
+                elem_data = elem.GetValue(kratos_variable)
+                rotated_vec = __RotateVector(elem_data, rotation_axis, rotation_angle)
+                elem.SetValue(kratos_variable, rotated_vec)
 
     for cond_data_name in conditional_data_to_rotate:
+        kratos_variable = KratosMultiphysics.KratosGlobals.GetVariable(cond_data_name)
         for cond in model_part.Conditions:
-            kratos_variable = KratosMultiphysics.KratosGlobals.GetVariable(cond_data_name)
-            cond_data = cond.GetValue(kratos_variable)
-            rotated_vec = __RotateVector(cond_data, rotation_axis, rotation_angle)
-            cond.SetValue(kratos_variable, rotated_vec)
+            if cond.Has(kratos_variable):
+                cond_data = cond.GetValue(kratos_variable)
+                rotated_vec = __RotateVector(cond_data, rotation_axis, rotation_angle)
+                cond.SetValue(kratos_variable, rotated_vec)
 
 
 def AddModelPart(model_part_1,
