@@ -22,7 +22,7 @@ def ReadModelPart(mdpa_file_name, model_part_name):
     model_part = KratosMultiphysics.ModelPart(model_part_name)
     # We reorder because otherwise the numbering might be screwed up when we combine the ModelParts later
     KratosMultiphysics.ReorderConsecutiveModelPartIO(mdpa_file_name).ReadModelPart(model_part)
-    __RemoveTimeFiles()
+    __RemoveAuxFiles()
     return model_part
 
 
@@ -206,7 +206,7 @@ def WriteMdpaFile(model_part,
 
     print("#####\nWrote ModelPart to GID\n#####")
 
-    __RemoveTimeFiles()
+    __RemoveAuxFiles()
 
 
 def __WriteModelPartInfo(model_part,
@@ -340,7 +340,7 @@ def __RotateVector(vec_to_rotate,
 
     return return_vector
 
-def __RemoveTimeFiles():
+def __RemoveAuxFiles():
     '''
     Removes auxiliary files from the directory
     '''
