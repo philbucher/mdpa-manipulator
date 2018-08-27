@@ -13,26 +13,26 @@ import os
 import time
 
 
-def ReadModelPart(mdpa_file_name):
+def ReadModelPart(mdpa_file_name, model_part_name):
     '''
     Read and return a ModelPart from a mdpa file
     '''
     if mdpa_file_name.endswith('.mdpa'):
         mdpa_file_name = mdpa_file_name[:-5]
-    model_part = KratosMultiphysics.ModelPart(mdpa_file_name)
+    model_part = KratosMultiphysics.ModelPart(model_part_name)
     # We reorder because otherwise the numbering might be screwed up when we combine the ModelParts later
     KratosMultiphysics.ReorderConsecutiveModelPartIO(mdpa_file_name).ReadModelPart(model_part)
     __RemoveTimeFiles()
     return model_part
 
 
-def GetDefaultModelPart():
+def GetDefaultModelPart(model_part_name):
     '''
     Create and return an empty "dummy" ModelPart to which the other ModelParts are to be added
     in order to have a clean "start"
     '''
-    model_part = KratosMultiphysics.ModelPart("Empty")
-    prop_0 = model_part.GetProperties(0,0) # create dummy properties with id 0
+    model_part = KratosMultiphysics.ModelPart(model_part_name)
+    prop_0 = model_part.GetProperties(0,0) # create dummy properties with id
     return model_part
 
 
@@ -109,7 +109,8 @@ def RotateModelPart(model_part,
 
 
 def AddModelPart(model_part_1,
-                 model_part_2,name = ""):
+                 model_part_2,
+                 add_as_submodelpart=False):
     '''
     Adding the model_part_2 to model_part_1 (appending)
     '''
@@ -120,7 +121,7 @@ def AddModelPart(model_part_1,
 
     num_nodes_self = model_part_1.NumberOfNodes()
     num_elements_self = model_part_1.NumberOfElements()
-    num_conditions_self =model_part_1.NumberOfConditions()
+    num_conditions_self = model_part_1.NumberOfConditions()
 
     for node in model_part_2.Nodes:
         node.Id += num_nodes_self
@@ -131,17 +132,16 @@ def AddModelPart(model_part_1,
 
     KratosMultiphysics.FastTransferBetweenModelPartsProcess(model_part_1, model_part_2, KratosMultiphysics.FastTransferBetweenModelPartsProcess.EntityTransfered.ALL).Execute()
 
-    
-    if name == "":
+    if add_as_submodelpart:
+        # adding model_part_2 as submodel part to model_part_1 (called recursively)
+        __AddAsSubModelPart(model_part_1, model_part_2)
+    else:
         # adding submodel parts of model_part_2 to model_part_1 (called recursively)
         __AddSubModelPart(model_part_1, model_part_2)
-    else:
-        # adding model_part_2 as submodel part to model_part_1 (called recursively)
-        __AddAsSubModelPart(model_part_1, model_part_2,name)
 
 
 def WriteMdpaFile(model_part,
-                  new_mdpa_file_name,
+                  mdpa_file_name,
                   variables_to_write_to_gid=[],
                   assing_properties=False):
     '''
@@ -151,20 +151,20 @@ def WriteMdpaFile(model_part,
     if (type(model_part) != KratosMultiphysics.ModelPart):
             raise Exception("input is expected to be provided as a Kratos ModelPart object")
 
-    if new_mdpa_file_name.endswith('.mdpa'):
-        new_mdpa_file_name = new_mdpa_file_name[:-5]
+    if mdpa_file_name.endswith('.mdpa'):
+        mdpa_file_name = mdpa_file_name[:-5]
 
-    file = open(new_mdpa_file_name + ".mdpa","w")
+    file = open(mdpa_file_name + ".mdpa","w")
     __WriteModelPartInfo(model_part, file)
     file.close()
 
     # using append bcs some info was written beforehand
-    KratosMultiphysics.ModelPartIO(new_mdpa_file_name, KratosMultiphysics.IO.APPEND).WriteModelPart(model_part)
+    KratosMultiphysics.ModelPartIO(mdpa_file_name, KratosMultiphysics.IO.APPEND).WriteModelPart(model_part)
     print("#####\nWrote ModelPart to MDPA\n#####")
 
     ### Write the file for Visualizing in GiD
     gid_model_part = KratosMultiphysics.ModelPart("MDPAToGID")
-    KratosMultiphysics.ModelPartIO(new_mdpa_file_name).ReadModelPart(gid_model_part)
+    KratosMultiphysics.ModelPartIO(mdpa_file_name).ReadModelPart(gid_model_part)
 
     if assing_properties:
         # assign different Properties to the elems/conds to visualize the smps in GiD
@@ -182,7 +182,7 @@ def WriteMdpaFile(model_part,
     deformed_mesh_flag = KratosMultiphysics.WriteDeformedMeshFlag.WriteUndeformed
     write_conditions = KratosMultiphysics.WriteConditionsFlag.WriteConditions
 
-    gid_io = KratosMultiphysics.GidIO(new_mdpa_file_name, gid_mode, multifile,
+    gid_io = KratosMultiphysics.GidIO(mdpa_file_name, gid_mode, multifile,
                                 deformed_mesh_flag, write_conditions)
 
     gid_io.InitializeMesh(0)
@@ -217,22 +217,59 @@ def __WriteModelPartInfo(model_part,
     localtime = time.asctime( time.localtime(time.time()) )
     open_file.write("// File created on " + localtime + "\n")
     open_file.write("// Mesh Information:\n")
+    open_file.write("// ModelPartName: " + model_part.Name + "\n")
     open_file.write("// Number of Nodes: " + str(model_part.NumberOfNodes()) + "\n")
     open_file.write("// Number of Elements: " + str(model_part.NumberOfElements()) + "\n")
     open_file.write("// Number of Conditions: " + str(model_part.NumberOfConditions()) + "\n")
     open_file.write("// Number of SubModelParts: " + str(model_part.NumberOfSubModelParts()) + "\n")
-    __WriteSubModelPartInfo(model_part,open_file)
+    __WriteSubModelPartInfo(model_part,open_file, level=0)
     open_file.write("\n")
 
 def __WriteSubModelPartInfo(model_part,
-                         open_file):
+                            open_file,
+                            level):
+    SPACE = "    "
     for smp in model_part.SubModelParts:
-        open_file.write("// SubModelPart " + smp.Name + "\n")
-        open_file.write("//   Number of Nodes: " + str(smp.NumberOfNodes()) + "\n")
-        open_file.write("//   Number of Elements: " + str(smp.NumberOfElements()) + "\n")
-        open_file.write("//   Number of Conditions: " + str(smp.NumberOfConditions()) + "\n")
-        __WriteSubModelPartInfo(smp,open_file)
-        
+        full_name = [smp.Name]
+        psmp = smp
+        while psmp.IsSubModelPart():
+            psmp = psmp.GetParentModelPart()
+            full_name.append(psmp.Name)
+        open_file.write("// " + SPACE*level + "SubModelPart " + ".".join(full_name[::-1]) + "\n")
+        open_file.write("// " + SPACE*level + "Number of Nodes: " + str(smp.NumberOfNodes()) + "\n")
+        open_file.write("// " + SPACE*level + "Number of Elements: " + str(smp.NumberOfElements()) + "\n")
+        open_file.write("// " + SPACE*level + "Number of Conditions: " + str(smp.NumberOfConditions()) + "\n")
+        open_file.write("// " + SPACE*level + "Number of SubModelParts: " + str(smp.NumberOfSubModelParts()) + "\n")
+        __WriteSubModelPartInfo(smp,open_file, level+1)
+
+def __AddEntitiesToSubModelPart(original_sub_model_part,
+                                other_sub_model_part):
+    '''
+    Adds the entities of (nodes, elements and conditions) from
+    one SubModelPart to another
+    '''
+    # making list containing node IDs of particular submodel part
+    num_nodes_other = other_sub_model_part.NumberOfNodes()
+    smp_node_id_array = np.zeros(num_nodes_other, dtype=np.int)
+    for node_i, node in enumerate(other_sub_model_part.Nodes):
+        smp_node_id_array[node_i] = node.Id
+
+    # making list containing element IDs of particular submodel part
+    num_elements_other = other_sub_model_part.NumberOfElements()
+    smp_element_id_array = np.zeros(num_elements_other, dtype=np.int)
+    for element_i, element in enumerate(other_sub_model_part.Elements):
+        smp_element_id_array[element_i] = element.Id
+
+    # making list containing condition IDs of particular submodel part
+    num_conditions_other = other_sub_model_part.NumberOfConditions()
+    smp_condition_id_array = np.zeros(num_conditions_other, dtype=np.int)
+    for condition_i, condition in enumerate(other_sub_model_part.Conditions):
+        smp_condition_id_array[condition_i] = condition.Id
+
+    original_sub_model_part.AddNodes(smp_node_id_array.tolist())
+    original_sub_model_part.AddElements(smp_element_id_array.tolist())
+    original_sub_model_part.AddConditions(smp_condition_id_array.tolist())
+
 def __AddSubModelPart(original_model_part,
                       other_model_part):
     '''
@@ -246,63 +283,23 @@ def __AddSubModelPart(original_model_part,
         else:
             smp_original = original_model_part.CreateSubModelPart(smp_other.Name)
 
-        # making list containing node IDs of particular submodel part
-        num_nodes_other = smp_other.NumberOfNodes()
-        smp_node_id_array = np.zeros(num_nodes_other, dtype=np.int)
-        for node, node_id in zip(smp_other.Nodes, range(num_nodes_other)):
-            smp_node_id_array[node_id] = node.Id
-
-        # making list containing element IDs of particular submodel part
-        num_elements_other = smp_other.NumberOfElements()
-        smp_element_id_array = np.zeros(num_elements_other, dtype=np.int)
-        for element, element_id in zip(smp_other.Elements, range(num_elements_other)):
-            smp_element_id_array[element_id] = element.Id
-
-        # making list containing condition IDs of particular submodel part
-        num_conditions_other = smp_other.NumberOfConditions()
-        smp_condition_id_array = np.zeros(num_conditions_other, dtype=np.int)
-        for condition, condition_id in zip(smp_other.Conditions, range(num_conditions_other)):
-            smp_condition_id_array[condition_id] = condition.Id
-
-        smp_original.AddNodes(smp_node_id_array.tolist())
-        smp_original.AddElements(smp_element_id_array.tolist())
-        smp_original.AddConditions(smp_condition_id_array.tolist())
+        __AddEntitiesToSubModelPart(smp_original, smp_other)
 
         __AddSubModelPart(smp_original, smp_other) # call recursively to transfer nested SubModelParts
 
 def __AddAsSubModelPart(original_model_part,
-                      other_model_part,name):
+                        other_model_part):
     '''
     Adds the SubModelParts of one ModelPart to the other one
     If the original ModelPart already contains a SMP with the same name,
     the entities are added to it
     '''
-    smp_original = original_model_part.CreateSubModelPart(name)
+    smp_original = original_model_part.CreateSubModelPart(other_model_part.Name)
 
-    # making list containing node IDs of particular submodel part
-    num_nodes_other = other_model_part.NumberOfNodes()
-    smp_node_id_array = np.zeros(num_nodes_other, dtype=np.int)
-    for node, node_id in zip(other_model_part.Nodes, range(num_nodes_other)):
-        smp_node_id_array[node_id] = node.Id
-
-    # making list containing element IDs of particular submodel part
-    num_elements_other = other_model_part.NumberOfElements()
-    smp_element_id_array = np.zeros(num_elements_other, dtype=np.int)
-    for element, element_id in zip(other_model_part.Elements, range(num_elements_other)):
-        smp_element_id_array[element_id] = element.Id
-
-    # making list containing condition IDs of particular submodel part
-    num_conditions_other = other_model_part.NumberOfConditions()
-    smp_condition_id_array = np.zeros(num_conditions_other, dtype=np.int)
-    for condition, condition_id in zip(other_model_part.Conditions, range(num_conditions_other)):
-        smp_condition_id_array[condition_id] = condition.Id
-
-    smp_original.AddNodes(smp_node_id_array.tolist())
-    smp_original.AddElements(smp_element_id_array.tolist())
-    smp_original.AddConditions(smp_condition_id_array.tolist())
+    __AddEntitiesToSubModelPart(smp_original, other_model_part)
 
     for smp_other in other_model_part.SubModelParts:
-        __AddAsSubModelPart(smp_original, smp_other,smp_other.Name) # call recursively to transfer nested SubModelParts
+        __AddAsSubModelPart(smp_original, smp_other) # call recursively to transfer nested SubModelParts
 
 def __RotateVector(vec_to_rotate,
                    rotation_axis,
@@ -342,7 +339,6 @@ def __RotateVector(vec_to_rotate,
     return_vector[2] = 2*(Qtnion[3]*Qtnion[1]*x+Qtnion[3]*Qtnion[2]*y+Qtnion[0]*Qtnion[1]*y)+(Qtnion[0]*Qtnion[0]*z)+(Qtnion[3]*Qtnion[3]*z)-2*(Qtnion[2]*Qtnion[0]*x)-(Qtnion[2]*Qtnion[2]*z)-(Qtnion[1]*Qtnion[1]*z)
 
     return return_vector
-
 
 def __RemoveTimeFiles():
     '''

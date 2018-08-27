@@ -14,9 +14,9 @@ import model_part_manipulator_utility as mdpa_util # This is on the PYTHONPATH
 # Import the applications where the elements/conditions are defined
 import KratosMultiphysics.StructuralMechanicsApplication
 
-modelpart_1 = mdpa_util.ReadModelPart("Blade")
-modelpart_2 = mdpa_util.ReadModelPart("Blade")
-modelpart_3 = mdpa_util.ReadModelPart("Blade")
+modelpart_1 = mdpa_util.ReadModelPart("Blade", "Blade1")
+modelpart_2 = mdpa_util.ReadModelPart("Blade", "Blade2")
+modelpart_3 = mdpa_util.ReadModelPart("Blade", "Blade3")
 
 mdpa_util.TranslateModelPart(modelpart_1, [0,0,0.65])
 mdpa_util.TranslateModelPart(modelpart_2, [0,0,0.65])
@@ -25,9 +25,10 @@ mdpa_util.TranslateModelPart(modelpart_3, [0,0,0.65])
 mdpa_util.RotateModelPart(modelpart_2, [1,0,0], 120)
 mdpa_util.RotateModelPart(modelpart_3, [1,0,0], 240)
 
-model_part_0 = mdpa_util.GetDefaultModelPart() # using this for a "clean" start
-mdpa_util.AddModelPart(model_part_0, modelpart_1,"blade_1")
-mdpa_util.AddModelPart(model_part_0, modelpart_2,"blade_2")
-mdpa_util.AddModelPart(model_part_0, modelpart_3,"blade_3")
+model_part_0 = mdpa_util.GetDefaultModelPart("Structure") # using this for a "clean" start
+mdpa_util.AddModelPart(model_part_0, modelpart_1, add_as_submodelpart=True)
+mdpa_util.AddModelPart(model_part_0, modelpart_2, add_as_submodelpart=False)
+mdpa_util.AddModelPart(model_part_0, modelpart_3, add_as_submodelpart=False)
+# mdpa_util.AddModelPart(model_part_0, modelpart_4, add_as_submodelpart=True)
 
 mdpa_util.WriteMdpaFile(model_part_0, "CompleteRotor")
