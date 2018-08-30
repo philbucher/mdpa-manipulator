@@ -11,9 +11,44 @@ import numpy as np
 import math
 import os
 import time
+import json
 
+def CombineMatProperties(model_part_1,model_part_2,model_part_name):
 
-def ReadModelPart(mdpa_file_name, model_part_name):
+    OutFilename = model_part_1.Name
+    InFilename = model_part_2.ProcessInfo[KratosMultiphysics.IDENTIFIER]
+
+    new_data = []
+    with open(InFilename,'r') as infile:
+        new_data = json.load(infile)
+        new_data["properties"][0]["model_part_name"] = model_part_name +"."+ new_data["properties"][0]["model_part_name"]
+
+    if os.path.isfile(OutFilename):
+        with open(OutFilename, 'r') as outfile:
+            old_dict = json.load(outfile)
+            old_dict["properties"].append(new_data["properties"][0])
+    else:
+        old_dict = []
+        old_dict = new_data
+
+    with open(OutFilename, 'w') as outfile:
+        outfile.write(DictToPrettyString(old_dict)+"\n")
+
+def WriteFinalMaterialProperties(InFilename,OutFilename):
+
+    with open(InFilename,'r') as infile:
+        new_data = json.load(infile)
+
+    length = len(new_data["properties"])
+    for i in range(0,length):
+        new_data["properties"][i]["properties_id"] = i+1
+
+    with open(OutFilename, 'w') as outfile:
+        outfile.write(DictToPrettyString(new_data)+"\n")
+
+    os.remove(InFilename)
+
+def ReadModelPart(mdpa_file_name, model_part_name, materials_filename=""):
     '''
     Read and return a ModelPart from a mdpa file
     '''
@@ -22,6 +57,10 @@ def ReadModelPart(mdpa_file_name, model_part_name):
     model_part = KratosMultiphysics.ModelPart(model_part_name)
     # We reorder because otherwise the numbering might be screwed up when we combine the ModelParts later
     KratosMultiphysics.ReorderConsecutiveModelPartIO(mdpa_file_name).ReadModelPart(model_part)
+
+    if materials_filename != "":
+        model_part.ProcessInfo[KratosMultiphysics.IDENTIFIER] = materials_filename
+
     __RemoveAuxFiles()
     return model_part
 
@@ -135,9 +174,16 @@ def AddModelPart(model_part_1,
     if add_as_submodelpart:
         # adding model_part_2 as submodel part to model_part_1 (called recursively)
         __AddAsSubModelPart(model_part_1, model_part_2)
+        if model_part_2.ProcessInfo.Has(KratosMultiphysics.IDENTIFIER):
+            ModelPartName = model_part_1.Name + "."+model_part_2.Name
+            CombineMatProperties(model_part_1,model_part_2,ModelPartName)
+
     else:
         # adding submodel parts of model_part_2 to model_part_1 (called recursively)
         __AddSubModelPart(model_part_1, model_part_2)
+        if model_part_2.ProcessInfo.Has(KratosMultiphysics.IDENTIFIER):
+            ModelPartName = model_part_1.Name
+            CombineMatProperties(model_part_1,model_part_2,ModelPartName)
 
 
 def WriteMdpaFile(model_part,
@@ -203,6 +249,9 @@ def WriteMdpaFile(model_part,
         gid_io.WriteNodalResultsNonHistorical(variable, gid_model_part.Nodes, 0)
 
     gid_io.FinalizeResults()
+
+    OutFilename = mdpa_file_name +"_MaterialProperties" + ".json"
+    WriteFinalMaterialProperties(model_part.Name,OutFilename)
 
     print("#####\nWrote ModelPart to GID\n#####")
 
@@ -299,7 +348,7 @@ def __AddAsSubModelPart(original_model_part,
     __AddEntitiesToSubModelPart(smp_original, other_model_part)
 
     for smp_other in other_model_part.SubModelParts:
-        __AddAsSubModelPart(smp_original, smp_other) # call recursively to transfer nested SubModelParts
+        __AddAsSubModelPart(smp_original, smp_other)   #call recursively to transfer nested SubModelParts
 
 def __RotateVector(vec_to_rotate,
                    rotation_axis,
@@ -368,7 +417,7 @@ def DictToPrettyString(o, level=0):
             for k in o.keys():
                 v = o[k]
                 ret += '"' + str(k) + '" : '
-                ret += WriteToJSON(v, level + 1)
+                ret += DictToPrettyString(v, level + 1)
 
             ret += "}"
         else:
@@ -380,7 +429,7 @@ def DictToPrettyString(o, level=0):
                 comma = ",\n"
                 ret += SPACE * INDENT * (level+1)
                 ret += '"' + str(k) + '" :' + SPACE
-                ret += WriteToJSON(v, level + 1)
+                ret += DictToPrettyString(v, level + 1)
 
             ret += NEWLINE + SPACE * INDENT * level + "}"
     elif isinstance(o, str):
@@ -392,13 +441,13 @@ def DictToPrettyString(o, level=0):
                 num_vals = len(o)
                 for i in range(num_vals):
                     entry = o[i]
-                    ret += WriteValue(entry)
+                    ret += DictToPrettyString(entry)
                     if i <= num_vals-2:
                         ret += ", "
                     else:
                         ret += "]"
             else:
-                ret += "[" + ",".join([WriteToJSON(e, level+1) for e in o]) + "]"
+                ret += "[" + ",".join([DictToPrettyString(e, level+1) for e in o]) + "]"
         else:
             ret += "[]"
     elif isinstance(o, bool):
