@@ -42,7 +42,7 @@ def DictToPrettyString(o, level=0):
         ret += '"' + o + '"'
     elif isinstance(o, list):
         if len(o) > 0:
-            if isinstance(o[0], (int,  float, str)):
+            if isinstance(o[0], (int,  float, str, dict)): # dict is needed for the composite-materials
                 ret += NEWLINE + SPACE * INDENT * (level+1) + "["
                 num_vals = len(o)
                 for i in range(num_vals):
@@ -69,6 +69,7 @@ def DictToPrettyString(o, level=0):
     elif o is None:
         ret += 'null'
     elif isinstance(o, TabularData):
+        err
         data = o.GetTabularData()
         ret += "[" + NEWLINE
         num_rows = len(data)
