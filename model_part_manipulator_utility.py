@@ -217,7 +217,7 @@ def WriteMdpaFile(model_part,
         # assign different Properties to the elems/conds to visualize the smps in GiD
         property_counter=1
         for smp in gid_model_part.SubModelParts:
-            prop = model_part.GetProperties(property_counter,0) # mesh_id=0
+            prop = gid_model_part.GetProperties(property_counter,0) # mesh_id=0
             for elem in smp.Elements:
                 elem.Properties = prop
             for cond in smp.Conditions:
