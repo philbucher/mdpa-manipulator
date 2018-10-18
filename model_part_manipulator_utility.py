@@ -13,54 +13,80 @@ import os
 import time
 import json
 import manipulator_helper_functions as helpers
+from copy import deepcopy
 
-def CombineMatProperties(model_part_1,model_part_2,model_part_name):
+def CombineMaterialProperties(to_model_part, from_model_part, model_part_name):
 
-    OutFilename = model_part_1.Name
-    InFilename = model_part_2.ProcessInfo[KratosMultiphysics.IDENTIFIER]
+    if not to_model_part.ProcessInfo.Has(KratosMultiphysics.IDENTIFIER):
+        # in case the ModelPart does not have materials specified, add empty ones
+        empty_props = {"properties" : []}
+        to_model_part.ProcessInfo[KratosMultiphysics.IDENTIFIER] = json.dumps(empty_props)
 
-    new_data = []
-    with open(InFilename,'r') as infile:
-        new_data = json.load(infile)
-        new_data["properties"][0]["model_part_name"] = model_part_name +"."+ new_data["properties"][0]["model_part_name"]
+    existing_props = json.loads(to_model_part.ProcessInfo[KratosMultiphysics.IDENTIFIER])
+    num_existing_props = len(existing_props["properties"])
+    props_by_name_dict = {mat["model_part_name"] : mat for mat in existing_props["properties"]}
 
-    if os.path.isfile(OutFilename):
-        with open(OutFilename, 'r') as outfile:
-            old_dict = json.load(outfile)
-            old_dict["properties"].append(new_data["properties"][0])
-    else:
-        old_dict = []
-        old_dict = new_data
+    # mp_names_existing_props = [prop["model_part_name"] for prop in existing_props["properties"]]
 
-    with open(OutFilename, 'w') as outfile:
-        outfile.write(helpers.DictToPrettyString(old_dict)+"\n")
+    new_props = json.loads(from_model_part.ProcessInfo[KratosMultiphysics.IDENTIFIER])
+    new_props_to_add = []
 
-def WriteFinalMaterialProperties(InFilename,OutFilename):
+    for i, props in enumerate(new_props["properties"]):
+        current_model_part_name = props["model_part_name"].split(".")
 
-    with open(InFilename,'r') as infile:
-        new_data = json.load(infile)
+        if current_model_part_name[0] == to_model_part.Name: # this means that the name of the MainModelPart is added
+            current_model_part_name.pop(0) # remove the MainModelPart-Name
 
-    length = len(new_data["properties"])
-    for i in range(0,length):
-        new_data["properties"][i]["properties_id"] = i+1
+        new_model_part_name = model_part_name + "." + ".".join([name for name in current_model_part_name])
+        props["model_part_name"] = new_model_part_name # done here bcs also needed for check
+        if new_model_part_name in props_by_name_dict: # properties for this ModelPart exist already
+            # check (again, this should have been checked before and should not fail here!) if the props are the same
+            if not __MaterialsListsAreEqual([deepcopy(props_by_name_dict[new_model_part_name])], [props]):
+                err_msg  = 'Different properties for ModelPart "' + new_model_part_name + '" exist!\n'
+                err_msg += 'This should not happen here, the error should have been thrown earlier when adding the ModelParts'
+                raise Exception(err_msg)
+        else:
+            props["new_properties_id"] = num_existing_props + i + 1
+            new_props_to_add.append(props)
 
-    with open(OutFilename, 'w') as outfile:
-        outfile.write(helpers.DictToPrettyString(new_data)+"\n")
 
-    os.remove(InFilename)
+    existing_props["properties"].extend(new_props_to_add)
+    to_model_part.ProcessInfo[KratosMultiphysics.IDENTIFIER] = json.dumps(existing_props)
 
-def ReadModelPart(mdpa_file_name, model_part_name, materials_filename=""):
+def WriteMaterialProperties(model_part, materials_file_name):
+
+    # in case there is nothing to write
+    if not model_part.ProcessInfo.Has(KratosMultiphysics.IDENTIFIER):
+        return
+
+    with open(materials_file_name, 'w') as materials_file:
+        material_dict = json.loads(model_part.ProcessInfo[KratosMultiphysics.IDENTIFIER])
+        # for the final writing assign the new property-ids:
+        # this can be done only now bcs otherwise the materials cannot be compared!
+        for mat in material_dict["properties"]:
+            mat["properties_id"] = mat["new_properties_id"]
+            mat.pop("new_properties_id")
+
+        materials_file.write(helpers.DictToPrettyString(material_dict)+"\n")
+
+def ReadModelPart(mdpa_file_name, model_part_name, materials_file_name=""):
     '''
     Read and return a ModelPart from a mdpa file
     '''
     if mdpa_file_name.endswith('.mdpa'):
         mdpa_file_name = mdpa_file_name[:-5]
-    model_part = KratosMultiphysics.ModelPart(model_part_name)
+    model = KratosMultiphysics.Model()
+    model_part = model.CreateModelPart(model_part_name)
     # We reorder because otherwise the numbering might be screwed up when we combine the ModelParts later
     KratosMultiphysics.ReorderConsecutiveModelPartIO(mdpa_file_name).ReadModelPart(model_part)
 
-    if materials_filename != "":
-        model_part.ProcessInfo[KratosMultiphysics.IDENTIFIER] = materials_filename
+    if materials_file_name != "":
+        # in case a materials-file is to be combined, it is read and saved as a string
+        # for this the ProcessInfo is used => bcs it is shared among (Sub-)ModelParts
+        with open(materials_file_name,'r') as materials_file:
+            materials_string = json.dumps(json.load(materials_file))
+        model_part.ProcessInfo[KratosMultiphysics.IDENTIFIER] = materials_string
+        model_part[KratosMultiphysics.IDENTIFIER] = materials_string
 
     __RemoveAuxFiles()
     return model_part
@@ -71,7 +97,8 @@ def GetDefaultModelPart(model_part_name):
     Create and return an empty "dummy" ModelPart to which the other ModelParts are to be added
     in order to have a clean "start"
     '''
-    model_part = KratosMultiphysics.ModelPart(model_part_name)
+    model = KratosMultiphysics.Model()
+    model_part = model.CreateModelPart(model_part_name)
     prop_0 = model_part.GetProperties(0,0) # create dummy properties with id
     return model_part
 
@@ -170,21 +197,22 @@ def AddModelPart(model_part_1,
     for condition in model_part_2.Conditions:
         condition.Id += num_conditions_self
 
-    KratosMultiphysics.FastTransferBetweenModelPartsProcess(model_part_1, model_part_2, KratosMultiphysics.FastTransferBetweenModelPartsProcess.EntityTransfered.ALL).Execute()
+    KratosMultiphysics.FastTransferBetweenModelPartsProcess(model_part_1, model_part_2,
+        KratosMultiphysics.FastTransferBetweenModelPartsProcess.EntityTransfered.ALL).Execute()
 
-    if add_as_submodelpart:
+    if add_as_submodelpart: # add one one lovel lower
         # adding model_part_2 as submodel part to model_part_1 (called recursively)
         __AddAsSubModelPart(model_part_1, model_part_2)
         if model_part_2.ProcessInfo.Has(KratosMultiphysics.IDENTIFIER):
-            ModelPartName = model_part_1.Name + "."+model_part_2.Name
-            CombineMatProperties(model_part_1,model_part_2,ModelPartName)
+            model_part_name = model_part_1.Name + "." + model_part_2.Name
+            CombineMaterialProperties(model_part_1, model_part_2, model_part_name)
 
-    else:
+    else: # add on same level
         # adding submodel parts of model_part_2 to model_part_1 (called recursively)
         __AddSubModelPart(model_part_1, model_part_2)
         if model_part_2.ProcessInfo.Has(KratosMultiphysics.IDENTIFIER):
-            ModelPartName = model_part_1.Name
-            CombineMatProperties(model_part_1,model_part_2,ModelPartName)
+            model_part_name = model_part_1.Name
+            CombineMaterialProperties(model_part_1,model_part_2,model_part_name)
 
 
 def WriteMdpaFile(model_part,
@@ -209,8 +237,13 @@ def WriteMdpaFile(model_part,
     KratosMultiphysics.ModelPartIO(mdpa_file_name, KratosMultiphysics.IO.APPEND).WriteModelPart(model_part)
     print("#####\nWrote ModelPart to MDPA\n#####")
 
+    # writing the materials file if existing
+    materials_file_name = mdpa_file_name +"_Materials.json"
+    WriteMaterialProperties(model_part, materials_file_name)
+
     ### Write the file for Visualizing in GiD
-    gid_model_part = KratosMultiphysics.ModelPart("MDPAToGID")
+    model = KratosMultiphysics.Model()
+    gid_model_part = model.CreateModelPart("MDPAToGID")
     KratosMultiphysics.ModelPartIO(mdpa_file_name).ReadModelPart(gid_model_part)
 
     if assing_properties:
@@ -250,9 +283,6 @@ def WriteMdpaFile(model_part,
         gid_io.WriteNodalResultsNonHistorical(variable, gid_model_part.Nodes, 0)
 
     gid_io.FinalizeResults()
-
-    OutFilename = mdpa_file_name +"_MaterialProperties" + ".json"
-    WriteFinalMaterialProperties(model_part.Name,OutFilename)
 
     print("#####\nWrote ModelPart to GID\n#####")
 
@@ -330,6 +360,31 @@ def __AddSubModelPart(original_model_part,
     for smp_other in other_model_part.SubModelParts:
         if original_model_part.HasSubModelPart(smp_other.Name):
             smp_original = original_model_part.GetSubModelPart(smp_other.Name)
+
+            # in case we add sth to an existing SubModelPart, we have to make sure that the materials are the same!
+            smp_orig_has_materials = smp_original.ProcessInfo.Has(KratosMultiphysics.IDENTIFIER)
+            other_mp_has_materials = smp_other.ProcessInfo.Has(KratosMultiphysics.IDENTIFIER)
+
+            if smp_orig_has_materials and other_mp_has_materials: # both MPs have materials, checking if they are the same
+                orig_material = json.loads(original_model_part.ProcessInfo[KratosMultiphysics.IDENTIFIER])
+                other_material = json.loads(smp_other.ProcessInfo[KratosMultiphysics.IDENTIFIER])
+
+                if not __MaterialsListsAreEqual(orig_material["properties"], other_material["properties"]):
+                    err_msg  = 'Trying to add "' + smp_other.GetRootModelPart().Name + '" to "'
+                    err_msg += original_model_part.GetRootModelPart().Name + '" but their materials are different!'
+                    raise Exception(err_msg)
+
+            elif smp_orig_has_materials and not other_mp_has_materials:
+                err_msg  = 'Trying to add "' + smp_other.GetRootModelPart().Name + '" (has NO materials) to "'
+                err_msg += original_model_part.GetRootModelPart().Name + '" (has materials)'
+                raise Exception(err_msg)
+            elif not smp_orig_has_materials and other_mp_has_materials:
+                err_msg  = 'Trying to add "' + smp_other.GetRootModelPart().Name + '" (has materials) to "'
+                err_msg += original_model_part.GetRootModelPart().Name + '" (has NO materials)'
+                raise Exception(err_msg)
+            else:
+                pass # => none has materials, no checking required
+
         else:
             smp_original = original_model_part.CreateSubModelPart(smp_other.Name)
 
@@ -350,6 +405,16 @@ def __AddAsSubModelPart(original_model_part,
 
     for smp_other in other_model_part.SubModelParts:
         __AddAsSubModelPart(smp_original, smp_other)   #call recursively to transfer nested SubModelParts
+
+def __MaterialsListsAreEqual(original_materials,
+                             other_materials):
+    '''
+    In order to compare the materials the "new_properties_id" is removed
+    '''
+    for mat in original_materials:
+        mat.pop("new_properties_id")
+
+    return original_materials == other_materials
 
 def __RotateVector(vec_to_rotate,
                    rotation_axis,
