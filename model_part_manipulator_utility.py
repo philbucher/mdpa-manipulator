@@ -26,8 +26,6 @@ def CombineMaterialProperties(to_model_part, from_model_part, model_part_name):
     num_existing_props = len(existing_props["properties"])
     props_by_name_dict = {mat["model_part_name"] : mat for mat in existing_props["properties"]}
 
-    # mp_names_existing_props = [prop["model_part_name"] for prop in existing_props["properties"]]
-
     new_props = json.loads(from_model_part.ProcessInfo[KratosMultiphysics.IDENTIFIER])
     new_props_to_add = []
 
@@ -41,14 +39,13 @@ def CombineMaterialProperties(to_model_part, from_model_part, model_part_name):
         props["model_part_name"] = new_model_part_name # done here bcs also needed for check
         if new_model_part_name in props_by_name_dict: # properties for this ModelPart exist already
             # check (again, this should have been checked before and should not fail here!) if the props are the same
-            if not __MaterialsListsAreEqual([deepcopy(props_by_name_dict[new_model_part_name])], [props]):
+            if not __MaterialsListsAreEqual([props_by_name_dict[new_model_part_name]], [props]):
                 err_msg  = 'Different properties for ModelPart "' + new_model_part_name + '" exist!\n'
                 err_msg += 'This should not happen here, the error should have been thrown earlier when adding the ModelParts'
                 raise Exception(err_msg)
         else:
             props["new_properties_id"] = num_existing_props + i + 1
             new_props_to_add.append(props)
-
 
     existing_props["properties"].extend(new_props_to_add)
     to_model_part.ProcessInfo[KratosMultiphysics.IDENTIFIER] = json.dumps(existing_props)
@@ -411,10 +408,11 @@ def __MaterialsListsAreEqual(original_materials,
     '''
     In order to compare the materials the "new_properties_id" is removed
     '''
-    for mat in original_materials:
+    copy_original_materials = deepcopy(original_materials) # make a copy to not modify the original list
+    for mat in copy_original_materials:
         mat.pop("new_properties_id")
 
-    return original_materials == other_materials
+    return copy_original_materials == other_materials
 
 def __RotateVector(vec_to_rotate,
                    rotation_axis,
