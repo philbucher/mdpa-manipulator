@@ -75,7 +75,7 @@ def ReadModelPart(mdpa_file_name, model_part_name, materials_file_name=""):
     model = KratosMultiphysics.Model()
     model_part = model.CreateModelPart(model_part_name)
     # We reorder because otherwise the numbering might be screwed up when we combine the ModelParts later
-    KratosMultiphysics.ReorderConsecutiveModelPartIO(mdpa_file_name).ReadModelPart(model_part)
+    KratosMultiphysics.ReorderConsecutiveModelPartIO(mdpa_file_name, KratosMultiphysics.IO.SKIP_TIMER).ReadModelPart(model_part)
 
     if materials_file_name != "":
         # in case a materials-file is to be combined, it is read and saved as a string
@@ -231,7 +231,7 @@ def WriteMdpaFile(model_part,
     file.close()
 
     # using append bcs some info was written beforehand
-    KratosMultiphysics.ModelPartIO(mdpa_file_name, KratosMultiphysics.IO.APPEND).WriteModelPart(model_part)
+    KratosMultiphysics.ModelPartIO(mdpa_file_name, KratosMultiphysics.IO.APPEND|KratosMultiphysics.IO.SKIP_TIMER).WriteModelPart(model_part)
     print("#####\nWrote ModelPart to MDPA\n#####")
 
     # writing the materials file if existing
@@ -241,7 +241,7 @@ def WriteMdpaFile(model_part,
     ### Write the file for Visualizing in GiD
     model = KratosMultiphysics.Model()
     gid_model_part = model.CreateModelPart("MDPAToGID")
-    KratosMultiphysics.ModelPartIO(mdpa_file_name).ReadModelPart(gid_model_part)
+    KratosMultiphysics.ModelPartIO(mdpa_file_name, KratosMultiphysics.IO.SKIP_TIMER).ReadModelPart(gid_model_part)
 
     if assing_properties:
         # assign different Properties to the elems/conds to visualize the smps in GiD
