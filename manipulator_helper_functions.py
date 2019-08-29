@@ -6,6 +6,7 @@ They are in a separate file such that they can also be used separately
 
 
 def DictToPrettyString(o, level=0):
+    import numpy as np
     '''
     This function returns a nicely formatted string of a dictionary
     This can e.g. be written to a file
