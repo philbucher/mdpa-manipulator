@@ -66,5 +66,15 @@ default_parameters = KM.Parameters("""{
 vtk_io = KM.VtkOutput(model_part, default_parameters)
 vtk_io.PrintOutput()
 PrintTime("Vtk write time", start_time)
+print()
+
+### VTU ###
+start_time = time()
+default_parameters = KM.Parameters("""{
+}""")
+
+vtk_io = KM.VtuOutput(model_part, default_parameters)
+vtk_io.PrintOutput()
+PrintTime("Vtu write time", start_time)
 
 kratos_utils.DeleteFileIfExisting(mdpa_file_name + ".time")
