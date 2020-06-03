@@ -35,8 +35,12 @@ def CombineMaterialProperties(to_model_part, from_model_part, model_part_name):
         if current_model_part_name[0] == to_model_part.Name: # this means that the name of the MainModelPart is added
             current_model_part_name.pop(0) # remove the MainModelPart-Name
 
-        new_model_part_name = model_part_name + "." + ".".join([name for name in current_model_part_name])
+        if len(current_model_part_name) > 0 and not model_part_name.endswith("."):
+            model_part_name += "."
+
+        new_model_part_name = model_part_name + ".".join([name for name in current_model_part_name])
         props["model_part_name"] = new_model_part_name # done here bcs also needed for check
+
         if new_model_part_name in props_by_name_dict: # properties for this ModelPart exist already
             # check (again, this should have been checked before and should not fail here!) if the props are the same
             if not __MaterialsListsAreEqual([props_by_name_dict[new_model_part_name]], [props]):
@@ -129,6 +133,53 @@ def TranslateModelPart(model_part,
 
 
 def RotateModelPart(model_part,
+                    rotation_axis,
+                    rotation_angle,
+                    rotation_center,
+                    elemental_data_to_rotate=[],
+                    conditional_data_to_rotate=[]):
+    '''
+    Rotate the ModelPart around rotation_axis by rotation_angle
+    It can also rotate vectorial elemental/conditional data
+    example:
+    RotateModelPart(model_part, [1,2,4], 45)
+    rotation_axis has the format: [x, y, z]
+    rotation_angle is in Degree
+    '''
+    if (type(model_part) != KratosMultiphysics.ModelPart):
+            raise Exception("input is expected to be provided as a Kratos ModelPart object")
+
+    for node in model_part.Nodes:
+        RotX0Y0Z0=__RotateVector2([node.X0,node.Y0,node.Z0],rotation_axis, rotation_angle, rotation_center)
+        RotXYZ=__RotateVector2([node.X,node.Y,node.Z],rotation_axis, rotation_angle, rotation_center)
+        # RotX0Y0Z0=__RotateVector([node.X0,node.Y0,node.Z0],rotation_axis, rotation_angle)
+        # RotXYZ=__RotateVector([node.X,node.Y,node.Z],rotation_axis, rotation_angle)
+
+        node.X0 = RotX0Y0Z0[0]
+        node.Y0 = RotX0Y0Z0[1]
+        node.Z0 = RotX0Y0Z0[2]
+        node.X = RotXYZ[0]
+        node.Y = RotXYZ[1]
+        node.Z = RotXYZ[2]
+
+    for elem_data_name in elemental_data_to_rotate:
+        kratos_variable = KratosMultiphysics.KratosGlobals.GetVariable(elem_data_name)
+        for elem in model_part.Elements:
+            if elem.Has(kratos_variable):
+                elem_data = elem.GetValue(kratos_variable)
+                rotated_vec = __RotateVector2(elem_data, rotation_axis, rotation_angle, rotation_center)
+                elem.SetValue(kratos_variable, rotated_vec)
+
+    for cond_data_name in conditional_data_to_rotate:
+        kratos_variable = KratosMultiphysics.KratosGlobals.GetVariable(cond_data_name)
+        for cond in model_part.Conditions:
+            if cond.Has(kratos_variable):
+                cond_data = cond.GetValue(kratos_variable)
+                rotated_vec = __RotateVector2(cond_data, rotation_axis, rotation_angle, rotation_center)
+                cond.SetValue(kratos_variable, rotated_vec)
+
+
+def RotateModelPartOld(model_part,
                     rotation_axis,
                     rotation_angle,
                     elemental_data_to_rotate=[],
@@ -240,48 +291,60 @@ def WriteMdpaFile(model_part,
 
     ### Write the file for Visualizing in GiD
     model = KratosMultiphysics.Model()
-    gid_model_part = model.CreateModelPart("MDPAToGID")
-    KratosMultiphysics.ModelPartIO(mdpa_file_name, KratosMultiphysics.IO.SKIP_TIMER).ReadModelPart(gid_model_part)
+    post_model_part = model.CreateModelPart("MDPAToPost")
+    KratosMultiphysics.ModelPartIO(mdpa_file_name, KratosMultiphysics.IO.SKIP_TIMER).ReadModelPart(post_model_part)
 
-    if assing_properties:
-        # assign different Properties to the elems/conds to visualize the smps in GiD
-        property_counter=1
-        for smp in gid_model_part.SubModelParts:
-            prop = gid_model_part.GetProperties(property_counter,0) # mesh_id=0
-            for elem in smp.Elements:
-                elem.Properties = prop
-            for cond in smp.Conditions:
-                cond.Properties = prop
-            property_counter += 1
+    vtk_params = KratosMultiphysics.Parameters("""{
+        "file_format"                        : "binary",
+        "save_output_files_in_folder"        : false,
+        "custom_name_prefix"                 : "",
+        "element_data_value_variables"       : []
+    }""")
 
-    gid_mode = KratosMultiphysics.GiDPostMode.GiD_PostBinary
-    multifile = KratosMultiphysics.MultiFileFlag.MultipleFiles
-    deformed_mesh_flag = KratosMultiphysics.WriteDeformedMeshFlag.WriteUndeformed
-    write_conditions = KratosMultiphysics.WriteConditionsFlag.WriteConditions
+    for var in variables_to_write_to_gid:
+        vtk_params["element_data_value_variables"].Append(var)
 
-    gid_io = KratosMultiphysics.GidIO(mdpa_file_name, gid_mode, multifile,
-                                deformed_mesh_flag, write_conditions)
+    KratosMultiphysics.VtkOutput(post_model_part, vtk_params).PrintOutput()
 
-    gid_io.InitializeMesh(0)
-    gid_io.WriteMesh(gid_model_part.GetMesh())
-    gid_io.FinalizeMesh()
+    # if assing_properties:
+    #     # assign different Properties to the elems/conds to visualize the smps in GiD
+    #     property_counter=1
+    #     for smp in post_model_part.SubModelParts:
+    #         prop = post_model_part.GetProperties(property_counter,0) # mesh_id=0
+    #         for elem in smp.Elements:
+    #             elem.Properties = prop
+    #         for cond in smp.Conditions:
+    #             cond.Properties = prop
+    #         property_counter += 1
 
-    gid_io.InitializeResults(0, gid_model_part.GetMesh())
+    # gid_mode = KratosMultiphysics.GiDPostMode.GiD_PostBinary
+    # multifile = KratosMultiphysics.MultiFileFlag.MultipleFiles
+    # deformed_mesh_flag = KratosMultiphysics.WriteDeformedMeshFlag.WriteUndeformed
+    # write_conditions = KratosMultiphysics.WriteConditionsFlag.WriteConditions
 
-    kratos_variables_to_write = []
-    for variable_name in variables_to_write_to_gid:
-        kratos_variables_to_write.append(KratosMultiphysics.KratosGlobals.GetVariable(variable_name))
+    # gid_io = KratosMultiphysics.GidIO(mdpa_file_name, gid_mode, multifile,
+    #                             deformed_mesh_flag, write_conditions)
 
-    for elem in gid_model_part.Elements:
-        for variable in kratos_variables_to_write:
-            elem.GetNodes()[0].SetValue(variable, elem.GetValue(variable))
+    # gid_io.InitializeMesh(0)
+    # gid_io.WriteMesh(post_model_part.GetMesh())
+    # gid_io.FinalizeMesh()
 
-    for variable in kratos_variables_to_write:
-        gid_io.WriteNodalResultsNonHistorical(variable, gid_model_part.Nodes, 0)
+    # gid_io.InitializeResults(0, post_model_part.GetMesh())
 
-    gid_io.FinalizeResults()
+    # kratos_variables_to_write = []
+    # for variable_name in variables_to_write_to_gid:
+    #     kratos_variables_to_write.append(KratosMultiphysics.KratosGlobals.GetVariable(variable_name))
 
-    print("#####\nWrote ModelPart to GID\n#####")
+    # for elem in post_model_part.Elements:
+    #     for variable in kratos_variables_to_write:
+    #         elem.GetNodes()[0].SetValue(variable, elem.GetValue(variable))
+
+    # for variable in kratos_variables_to_write:
+    #     gid_io.WriteNodalResultsNonHistorical(variable, post_model_part.Nodes, 0)
+
+    # gid_io.FinalizeResults()
+
+    print("#####\nWrote ModelPart to VTK\n#####")
 
     __RemoveAuxFiles()
 
@@ -292,7 +355,7 @@ def __WriteModelPartInfo(model_part,
     Writing some information about the ModelPart to the mdpa file
     '''
     localtime = time.asctime( time.localtime(time.time()) )
-    open_file.write("// File created on " + localtime + "\n")
+    # open_file.write("// File created on " + localtime + "\n")
     open_file.write("// Mesh Information:\n")
     open_file.write("// ModelPartName: " + model_part.Name + "\n")
     open_file.write("// Number of Nodes: " + str(model_part.NumberOfNodes()) + "\n")
@@ -413,6 +476,60 @@ def __MaterialsListsAreEqual(original_materials,
         mat.pop("new_properties_id")
 
     return copy_original_materials == other_materials
+
+def __RotateVector2(vec_to_rotate,
+                   rotation_axis,
+                   rotation_angle,
+                   rotation_center):
+    '''
+    Rotates a generic vector around rotation_axis by rotation_angle
+    example:
+    __RotateVector([0,12,-3], [1,2,4], 45)
+    rotation_axis has the format: [x, y, z]
+    rotation_angle is in Degree
+    The concept of Quaternion is used for the implementation
+    Reference : https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation
+    '''
+    rotation_angle = rotation_angle*(math.pi/180)
+
+    if len(rotation_axis) != 3:
+        raise Exception("Wrong length of input")
+
+    rotation_matrix = KratosMultiphysics.Matrix(4,4)
+    KratosMultiphysics.GeometricalTransformationUtilities.CalculateRotationMatrix(rotation_angle, rotation_matrix, rotation_axis, rotation_center)
+
+    aux_vector_orig = KratosMultiphysics.Vector(4)
+    aux_vector_trans = KratosMultiphysics.Vector(4)
+
+    aux_vector_orig[3] = 1.0
+    for i in range(3):
+        aux_vector_orig[i] = vec_to_rotate[i]
+
+    for i in range(4):
+        for j in range(4):
+            aux_vector_trans[i] += rotation_matrix[i,j] * aux_vector_orig[j]
+
+    rotated_vector = KratosMultiphysics.Vector(3)
+    for i in range(3):
+        rotated_vector[i] = aux_vector_trans[i]
+
+    return rotated_vector
+
+# void ApplyPeriodicConditionProcess::TransformNode(const array_1d<double, 3 >& rCoordinates, array_1d<double, 3 >& rTransformedCoordinates) const
+# {
+#     DenseVector<double> original_node(4, 0.0);
+#     DenseVector<double> transformed_node(4, 0.0);
+
+#     original_node[0] = rCoordinates(0); original_node[1] = rCoordinates(1); original_node[2] = rCoordinates(2); original_node[3] = 1.0;
+#     // Multiplying the point to get the rotated point
+#     for (int i = 0; i < 4; i++) {
+#         for (int j = 0; j < 4; j++) {
+#             transformed_node[i] += mTransformationMatrix(i,j) * original_node[j];
+#         }
+#     }
+
+#     rTransformedCoordinates(0) = transformed_node[0]; rTransformedCoordinates(1) = transformed_node[1]; rTransformedCoordinates(2) = transformed_node[2];
+# }
 
 def __RotateVector(vec_to_rotate,
                    rotation_axis,
