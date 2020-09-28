@@ -33,21 +33,21 @@ model_part_io = KM.ModelPartIO(mdpa_file_name, import_flags).ReadModelPart(model
 PrintTime("\nMdpa reading time", start_time)
 print()
 
-### GID ###
-start_time = time()
-gid_mode = KM.GiDPostMode.GiD_PostBinary
-multifile = KM.MultiFileFlag.MultipleFiles
-deformed_mesh_flag = KM.WriteDeformedMeshFlag.WriteUndeformed
-write_conditions = KM.WriteConditionsFlag.WriteConditions
+# ### GID ###
+# start_time = time()
+# gid_mode = KM.GiDPostMode.GiD_PostBinary
+# multifile = KM.MultiFileFlag.MultipleFiles
+# deformed_mesh_flag = KM.WriteDeformedMeshFlag.WriteUndeformed
+# write_conditions = KM.WriteConditionsFlag.WriteConditions
 
-gid_io = KM.GidIO(mdpa_file_name, gid_mode, multifile,
-                                   deformed_mesh_flag, write_conditions)
+# gid_io = KM.GidIO(mdpa_file_name, gid_mode, multifile,
+#                                    deformed_mesh_flag, write_conditions)
 
-gid_io.InitializeMesh(0)
-gid_io.WriteMesh(model_part.GetMesh())
-gid_io.FinalizeMesh()
-PrintTime("GiD write time", start_time)
-print()
+# gid_io.InitializeMesh(0)
+# gid_io.WriteMesh(model_part.GetMesh())
+# gid_io.FinalizeMesh()
+# PrintTime("GiD write time", start_time)
+# print()
 
 ### VTK ###
 start_time = time()
@@ -55,8 +55,8 @@ default_parameters = KM.Parameters("""{
     "file_format"                        : "binary",
     "output_precision"                   : 7,
     "output_control_type"                : "step",
-    "output_sub_model_parts"             : false,
-    "save_output_files_in_folder"        : false,
+    "output_sub_model_parts"             : true,
+    "save_output_files_in_folder"        : true,
     "nodal_solution_step_data_variables" : [],
     "nodal_data_value_variables"         : [],
     "element_data_value_variables"       : [],
