@@ -100,7 +100,7 @@ def GetDefaultModelPart(model_part_name):
     '''
     model = KratosMultiphysics.Model()
     model_part = model.CreateModelPart(model_part_name)
-    prop_0 = model_part.GetProperties(0,0) # create dummy properties with id
+    prop_0 = model_part.CreateNewProperties(0)
     return model_part
 
 
