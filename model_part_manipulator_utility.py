@@ -362,7 +362,7 @@ def __WriteModelPartInfo(model_part,
     open_file.write("// Number of Elements: " + str(model_part.NumberOfElements()) + "\n")
     open_file.write("// Number of Conditions: " + str(model_part.NumberOfConditions()) + "\n")
     open_file.write("// Number of SubModelParts: " + str(model_part.NumberOfSubModelParts()) + "\n")
-    __WriteSubModelPartInfo(model_part,open_file, level=0)
+    __WriteSubModelPartInfo(model_part,open_file, level=1)
     open_file.write("\n")
 
 def __WriteSubModelPartInfo(model_part,
@@ -370,12 +370,7 @@ def __WriteSubModelPartInfo(model_part,
                             level):
     SPACE = "    "
     for smp in model_part.SubModelParts:
-        full_name = [smp.Name]
-        psmp = smp
-        while psmp.IsSubModelPart():
-            psmp = psmp.GetParentModelPart()
-            full_name.append(psmp.Name)
-        open_file.write("// " + SPACE*level + "SubModelPart " + ".".join(full_name[::-1]) + "\n")
+        open_file.write("// " + (SPACE*level)[:-2] + "SubModelPart: " + smp.Name + "\n")
         open_file.write("// " + SPACE*level + "Number of Nodes: " + str(smp.NumberOfNodes()) + "\n")
         open_file.write("// " + SPACE*level + "Number of Elements: " + str(smp.NumberOfElements()) + "\n")
         open_file.write("// " + SPACE*level + "Number of Conditions: " + str(smp.NumberOfConditions()) + "\n")
