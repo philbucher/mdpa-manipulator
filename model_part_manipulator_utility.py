@@ -29,7 +29,7 @@ def CombineMaterialProperties(to_model_part, from_model_part, model_part_name):
     new_props = json.loads(from_model_part.ProcessInfo[KratosMultiphysics.IDENTIFIER])
     new_props_to_add = []
 
-    for i, props in enumerate(new_props["properties"]):
+    for props in new_props["properties"]:
         current_model_part_name = props["model_part_name"].split(".")
 
         if current_model_part_name[0] == to_model_part.Name: # this means that the name of the MainModelPart is added
@@ -48,7 +48,6 @@ def CombineMaterialProperties(to_model_part, from_model_part, model_part_name):
                 err_msg += 'This should not happen here, the error should have been thrown earlier when adding the ModelParts'
                 raise Exception(err_msg)
         else:
-            props["new_properties_id"] = num_existing_props + i + 1
             new_props_to_add.append(props)
 
     existing_props["properties"].extend(new_props_to_add)
@@ -64,9 +63,8 @@ def WriteMaterialProperties(model_part, materials_file_name):
         material_dict = json.loads(model_part.ProcessInfo[KratosMultiphysics.IDENTIFIER])
         # for the final writing assign the new property-ids:
         # this can be done only now bcs otherwise the materials cannot be compared!
-        for mat in material_dict["properties"]:
-            mat["properties_id"] = mat["new_properties_id"]
-            mat.pop("new_properties_id")
+        for i, mat in enumerate(material_dict["properties"]):
+            mat["properties_id"] = i+1
 
         materials_file.write(helpers.DictToPrettyString(material_dict)+"\n")
 
@@ -464,13 +462,10 @@ def __AddAsSubModelPart(original_model_part,
 def __MaterialsListsAreEqual(original_materials,
                              other_materials):
     '''
-    In order to compare the materials the "new_properties_id" is removed
+    Check if materials are equal
     '''
-    copy_original_materials = deepcopy(original_materials) # make a copy to not modify the original list
-    for mat in copy_original_materials:
-        mat.pop("new_properties_id")
 
-    return copy_original_materials == other_materials
+    return original_materials == other_materials
 
 def __RotateVector2(vec_to_rotate,
                    rotation_axis,
