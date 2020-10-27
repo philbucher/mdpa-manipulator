@@ -69,16 +69,6 @@ def DictToPrettyString(o, level=0):
         ret += "[" + ','.join(map(lambda x: '%.7g' % x, o.flatten().tolist())) + "]"
     elif o is None:
         ret += 'null'
-    elif isinstance(o, TabularData):
-        err
-        data = o.GetTabularData()
-        ret += "[" + NEWLINE
-        num_rows = len(data)
-        for i in range(num_rows-1):
-            row = data[i]
-            ret += SPACE * INDENT * (level+1) + "[" + str(row[0]) + " , " + str(row[1]) + "]," + NEWLINE
-        ret += SPACE * INDENT * (level+1) + "[" + str(row[0]) + " , " + str(row[1]) + "]" + NEWLINE
-        ret += SPACE * INDENT * (level+1) + "]"
     else:
         raise TypeError("Unknown type '%s' for json serialization" % str(type(o)))
     return ret
