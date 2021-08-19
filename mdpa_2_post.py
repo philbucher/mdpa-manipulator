@@ -57,14 +57,14 @@ vtk_parameters = KM.Parameters("""{
     "output_control_type"                : "step",
     "output_sub_model_parts"             : true,
     "save_output_files_in_folder"        : true,
-    "folder_name"                        : "VTK_Output",
+    "output_path"                        : "VTK_Output",
     "nodal_solution_step_data_variables" : [],
     "nodal_data_value_variables"         : [],
     "element_data_value_variables"       : [],
     "condition_data_value_variables"     : []
 }""")
 
-vtk_parameters["folder_name"].SetString("VTK_Output_"+mdpa_file_name)
+vtk_parameters["output_path"].SetString("VTK_Output_"+mdpa_file_name)
 
 vtk_io = KM.VtkOutput(model_part, vtk_parameters)
 vtk_io.PrintOutput()
