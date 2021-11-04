@@ -52,17 +52,12 @@ print()
 ### VTK ###
 start_time = time()
 vtk_parameters = KM.Parameters("""{
-    "file_format"                        : "binary",
-    "output_precision"                   : 7,
     "output_control_type"                : "step",
     "output_sub_model_parts"             : true,
     "save_output_files_in_folder"        : true,
-    "output_path"                        : "VTK_Output",
-    "nodal_solution_step_data_variables" : [],
-    "nodal_data_value_variables"         : [],
-    "element_data_value_variables"       : [],
-    "condition_data_value_variables"     : []
+    "output_path"                        : ""
 }""")
+vtu_parameters = vtk_parameters.Clone()
 
 vtk_parameters["output_path"].SetString("VTK_Output_"+mdpa_file_name)
 
@@ -73,11 +68,9 @@ print()
 
 ### VTU ###
 start_time = time()
-vtk_parameters = KM.Parameters("""{
-}""")
-
-vtk_io = KM.VtuOutput(model_part, vtk_parameters)
-vtk_io.PrintOutput()
+vtu_parameters["output_path"].SetString("VTU_Output_"+mdpa_file_name)
+vtu_io = KM.VtuOutput(model_part, vtu_parameters)
+vtu_io.PrintOutput()
 PrintTime("Vtu write time", start_time)
 
 kratos_utils.DeleteFileIfExisting(mdpa_file_name + ".time")
